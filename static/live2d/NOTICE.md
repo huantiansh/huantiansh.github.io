@@ -8,6 +8,7 @@
 - 皮肤：憧憬的约会日（皮肤 ID 206033，EN 名 Long-Awaited Date）
 - 模型来源：`Eikanya/Live2d-model` 仓库中的 `dujiaoshou_4`
 - 文件：`dujiaoshou_4.moc3`、`dujiaoshou_4.model3.json`、`dujiaoshou_4.physics3.json`、`motions/`、`textures/`
+- 文章《游乐园关门前》头图使用该皮肤官方立绘（skin 206033），版权归原权利方所有
 - 版权归 Manjuu / Yongshi / Yostar 等原权利方所有
 
 ## 语音
