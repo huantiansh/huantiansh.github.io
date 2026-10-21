@@ -24,5 +24,6 @@
 
 - Live2D 看板娘组件：`oh-my-live2d`（MIT License）
 - Live2D Cubism Core：Live2D Inc. 所有，遵循 Live2D Cubism SDK 许可
+- 本地修改：`oml2d.min.js` 内置的 `unpkg.com` 版本检查 URL 已替换为本地 data URL，避免网络不可达时初始化失败；其余逻辑未改
 
 如权利方要求，请删除 `static/live2d/` 下相关素材。

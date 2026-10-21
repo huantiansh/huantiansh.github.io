@@ -17,7 +17,7 @@
   }
   function start() {
     loadScript(base + 'vendor/live2dcubismcore.min.js', function () {
-      loadScript(base + 'vendor/oml2d.min.js', function () {
+      loadScript(base + 'vendor/oml2d.min.js?v=' + version, function () {
         loadScript(base + 'unicorn/live2d-voice.js?v=' + version)
       })
     })
