@@ -97,14 +97,14 @@
       audio.volume = 0.85
       state.audio = audio
       let shown = false
-      const show = () => {
-        if (shown) return
+      const show = (force = false) => {
+        if (shown && !force) return
         shown = true
-        const seconds = Number.isFinite(audio.duration) && audio.duration > 0 ? audio.duration : 6
+        const seconds = Number.isFinite(audio.duration) && audio.duration > 0 ? audio.duration : 8
         showTip(line, Math.max(6000, Math.ceil(seconds * 1000) + 800))
       }
-      audio.addEventListener('loadedmetadata', show, { once: true })
-      if (audio.readyState >= 1) show()
+      show(true)
+      audio.addEventListener('loadedmetadata', () => show(true), { once: true })
       const played = audio.play()
       if (played && typeof played.catch === 'function') played.catch(() => {})
     } catch (err) {
