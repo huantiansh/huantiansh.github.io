@@ -1,0 +1,21 @@
+/public/
+/resources/_gen/
+.hugo_build.lock
+node_modules/
+.DS_Store
+Thumbs.db
+/content/.obsidian
+/data/links_rss.json
+
+# 本地预览、截图与 Edge 调试配置（体积大，不入库）
+/preview/
+/.preview-edge/
+/.preview-profile/
+/.preview-profile-comment/
+
+# 本地 Hugo 可执行文件（CI 会自行安装）
+/tools/
+
+# 本地 Claude 配置与密钥
+/.claude/
+.env

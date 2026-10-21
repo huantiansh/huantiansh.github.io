@@ -1,0 +1,31 @@
+{{- if partial "live2d-enabled.html" . -}}
+{{- $minWidth := default 768 site.Params.live2d.minWidth -}}
+<script>
+(function () {
+  if (window.__unicornLive2dLoaded) return
+  if (window.innerWidth < {{ $minWidth }}) return
+  window.__unicornLive2dLoaded = true
+  var base = '/live2d/'
+  function loadScript(src, next) {
+    var tag = document.createElement('script')
+    tag.src = src
+    tag.async = false
+    tag.onload = next
+    tag.onerror = function () { console.warn('[unicorn-live2d] failed to load', src) }
+    document.body.appendChild(tag)
+  }
+  function start() {
+    loadScript(base + 'vendor/live2dcubismcore.min.js', function () {
+      loadScript(base + 'vendor/oml2d.min.js', function () {
+        loadScript(base + 'unicorn/live2d-voice.js')
+      })
+    })
+  }
+  if ('requestIdleCallback' in window) {
+    window.requestIdleCallback(start, { timeout: 5000 })
+  } else {
+    window.setTimeout(start, 1200)
+  }
+})()
+</script>
+{{- end -}}
