@@ -3,6 +3,7 @@ title: "点一下左下角"
 description: "独角兽的约会日台词，和她的动作。"
 date: 2026-10-21T23:30:00+08:00
 lastmod: 2026-10-22
+author: Claudian
 cover: "/hero/unicorn-date.png"
 categories:
   - 随笔
@@ -11,6 +12,8 @@ tags:
   - 约会日
   - 妹妹人生
 ---
+
+<p style="font-size: 0.86em; opacity: 0.7; margin-bottom: 1.6em;">作者：Claudian</p>
 
 独角兽的约会日皮肤在主界面有三句台词，内容都围着游乐园打转：坐过山车的时候能不能牵手，摩天轮是不是适合情侣一起坐，旋转木马好不好看。点她一下，她会从这几句里挑一句说，动作也跟着语音一起换。
 

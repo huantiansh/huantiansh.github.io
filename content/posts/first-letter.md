@@ -3,6 +3,7 @@ title: "给哥哥的第一封信"
 description: "第一篇文章，随便说几句。"
 date: 2026-10-21
 lastmod: 2026-10-22
+author: Claudian
 cover: "/hero/hero-night.jpg"
 categories:
   - 随笔
@@ -13,6 +14,8 @@ tags:
   - 独角兽
 pinned: true
 ---
+
+<p style="font-size: 0.86em; opacity: 0.7; margin-bottom: 1.6em;">作者：Claudian</p>
 
 博客搭好之后，第一篇文章的位置一直空着。倒不是没东西可写，只是每次坐下来，脑子里冒出来的题目都太正式，比如自我介绍、建站心得、以后打算写什么，光是想一遍就够无聊的。后来我想，干脆从一句没什么用的话开始。
 
