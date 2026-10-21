@@ -9,44 +9,59 @@
   const VOICE_BASE = BASE + 'voice/'
 
   const LINES = {
-    login: '欢迎回来，哥哥……今天也要出击吗？',
-    home: '舰队…平安回港…哥哥辛苦了…膝枕…也可以的喔？',
-    main_1: '毁灭模式什么的，是不存在的喔？',
-    main_2: '优酱的角…是不会变形的喔？',
-    main_3: 'NーTーD？对不起…独角兽不知道哥哥在说什么',
+    main_1: '哥哥…坐过山车的时候，能握着你的手吗？',
+    main_2: '摩天轮…推荐情侣共乘…诶，啊，哥哥。没、没什么…！',
+    main_3: '旋转木马…好漂亮…诶？可以和哥哥一起…坐吗？',
+    touch_body: '像这样…在游乐园和哥哥手牵手，总觉得…就像恋人一样呢，嘻嘻……',
+    touch_special: '哥、哥哥，这里人有点多…',
+    mission: '哥哥，有重要的事的话，先去也没关系哦…？独角兽，会等着哥哥的…',
+    home: '不用那么急也没关系哦？独角兽会一直等着哥哥的',
     touch_head: '哥哥…独角兽是乖孩子吧…？',
-    touch_body: '嘻嘻…好痒的啦…哥哥…',
-    touch_special: '哥哥的话…可以喔？',
-    mission: '任务…不要忘记…',
-    mission_complete: '奖励…不能错过…',
     mail: '邮件…要去看看吗？',
-    wedding: '这么…重要的…独角兽真的…可以吗…？独角兽…会加油的…因为…最喜欢哥哥了',
-    feeling1: '哥哥…差劲…',
-    feeling2: '这孩子叫做优酱，独角兽（unicorn）的优酱…是我的挚友喔…嘻嘻…',
-    feeling3: '遇到危险的时候，优酱会保护我的——有哥哥在就不会有危险？嘻嘻，哥哥好像独角兽的骑士呢…',
-    feeling4: '独角兽一直很努力…支援姐姐们也好…出击任务也好…运输任务也好…独角兽是乖孩子吧？有派上用场吧？哥哥…',
-    feeling5: '在哥哥面前…任性也可以吗…？撒娇也可以吗…？独角兽…其实不是那么听话的孩子…这样也可以吗…？'
+    mission_complete: '奖励…不能错过…'
   }
 
-  const TOUCH = ['touch_head', 'touch_body', 'touch_special']
-  const CHAT = ['main_1', 'main_2', 'main_3', 'feeling1', 'feeling2', 'feeling3', 'feeling4', 'feeling5', 'home', 'mail', 'login', 'mission', 'mission_complete']
-  const bags = new Map()
-  const state = { widget: null, audio: null }
-
-  function pick(pool) {
-    let bag = bags.get(pool)
-    if (!bag || !bag.length) {
-      bag = pool.slice()
-      for (let i = bag.length - 1; i > 0; i -= 1) {
-        const j = Math.floor(Math.random() * (i + 1))
-        const tmp = bag[i]
-        bag[i] = bag[j]
-        bag[j] = tmp
-      }
-      bags.set(pool, bag)
-    }
-    return bag.pop()
+  const VOICE_FILES = {
+    main_1: 'main_1_3.wav',
+    main_2: 'main_2_3.wav',
+    main_3: 'main_3_3.wav',
+    touch_body: 'touch_1_3.wav',
+    touch_special: 'touch_2_3.wav',
+    mission: 'task_3.wav',
+    home: 'home_3.wav',
+    touch_head: 'touch_head.wav',
+    mail: 'mail.wav',
+    mission_complete: 'mission_complete.wav'
   }
+
+  const PAIRS = [
+    ['main_1', 'main_1'],
+    ['main_2', 'main_2'],
+    ['main_3', 'main_3'],
+    ['touch_body', 'touch_body'],
+    ['touch_special', 'touch_special'],
+    ['mission', 'mission'],
+    ['home', 'home']
+  ]
+
+  const MOTION_INDEX = {
+    idle: 0,
+    touch_body: 1,
+    touch_head: 2,
+    wedding: 3,
+    main_1: 4,
+    main_3: 5,
+    complete: 6,
+    home: 7,
+    main_2: 8,
+    touch_special: 9,
+    mission_complete: 10,
+    mission: 11,
+    mail: 12
+  }
+
+  let pairBag = []
+  const state = { widget: null, audio: null, lastPair: null }
 
   function injectIcons() {
     if (document.getElementById('unicorn-live2d-icons')) return
@@ -70,13 +85,14 @@
 
   function playVoice(key) {
     const line = LINES[key]
-    if (!line) return
+    const file = VOICE_FILES[key]
+    if (!line || !file) return
     try {
       if (state.audio) {
         state.audio.pause()
         state.audio.currentTime = 0
       }
-      const audio = new Audio(VOICE_BASE + key + '.wav')
+      const audio = new Audio(VOICE_BASE + file)
       audio.preload = 'auto'
       audio.volume = 0.85
       state.audio = audio
@@ -96,9 +112,57 @@
     }
   }
 
-  function pickTouch() {
-    if (Math.random() < 0.02) return 'wedding'
-    return pick(TOUCH)
+  function shuffle(list) {
+    const out = list.slice()
+    for (let i = out.length - 1; i > 0; i -= 1) {
+      const j = Math.floor(Math.random() * (i + 1))
+      const tmp = out[i]
+      out[i] = out[j]
+      out[j] = tmp
+    }
+    return out
+  }
+
+  function nextPair() {
+    if (!pairBag.length) pairBag = shuffle(PAIRS)
+    return pairBag.pop()
+  }
+
+  function playMotion(name) {
+    const index = MOTION_INDEX[name]
+    if (index == null) return
+    const models = state.widget && state.widget.models
+    if (!models) return
+    try {
+      if (typeof models.playMotion === 'function') {
+        models.playMotion('', index)
+      } else if (models.model && typeof models.model.motion === 'function') {
+        models.model.motion('', index)
+      }
+    } catch (err) {
+      // 动作失败时仍然保留语音
+    }
+  }
+
+  function unbindRandomHitMotion() {
+    const model = state.widget && state.widget.models && state.widget.models.model
+    if (!model || model.__unicornHitCleared) return
+    model.__unicornHitCleared = true
+    try {
+      const listeners = typeof model.listeners === 'function' ? model.listeners('hit') : []
+      listeners.forEach((fn) => model.off('hit', fn))
+    } catch (err) {
+      // 忽略：不同版本的 pixi-live2d-display 事件 API 可能不同
+    }
+  }
+
+  function playPair(pair) {
+    if (!pair) return
+    const voiceKey = pair[0]
+    const motionName = pair[1]
+    state.lastPair = { voice: voiceKey, motion: motionName }
+    playMotion(motionName)
+    playVoice(voiceKey)
   }
 
   function rest(instance) {
@@ -121,9 +185,13 @@
       canvas = Array.from(document.querySelectorAll('canvas')).find((el) => el.width > 100 && el.height > 100) || null
     }
     if (!canvas) return false
-    if (canvas.dataset.unicornVoice === '1') return true
+    if (canvas.dataset.unicornVoice === '1') {
+      unbindRandomHitMotion()
+      return true
+    }
     canvas.dataset.unicornVoice = '1'
-    canvas.addEventListener('pointerdown', () => playVoice(pickTouch()), { passive: true })
+    unbindRandomHitMotion()
+    canvas.addEventListener('pointerdown', () => playPair(nextPair()), { passive: true })
     return true
   }
 
@@ -174,6 +242,7 @@
         position: [0, Math.round(40 * ratio)],
         scale: 0.09 * ratio,
         stageStyle: { height },
+        motionPreloadStrategy: 'ALL',
         volume: 0
       }],
       dockedPosition: 'left',
@@ -183,7 +252,11 @@
       tips: {
         idleTips: {
           wordTheDay: false,
-          message: ['点一下独角兽，听听她说话吧。', '哥哥——。', '今天也要好好休息哦。'],
+          message: [
+            '点一下独角兽，听听她说话吧。',
+            '哥哥…坐过山车的时候，能握着你的手吗？',
+            '摩天轮…推荐情侣共乘…诶，啊，哥哥。没、没什么…！'
+          ],
           duration: 6000,
           interval: 30000,
           priority: 2
@@ -195,13 +268,13 @@
             id: 'UnicornVoice',
             icon: 'unicorn-icon-voice',
             title: '听她说',
-            onClick: () => playVoice(pick(CHAT))
+            onClick: () => playPair(nextPair())
           },
           {
             id: 'UnicornHeadpat',
             icon: 'unicorn-icon-heart',
             title: '摸摸头',
-            onClick: () => playVoice('touch_head')
+            onClick: () => playPair(['touch_head', 'touch_head'])
           },
           {
             id: 'UnicornRest',
@@ -237,7 +310,9 @@
 
   const preload = () => {
     for (const key of ['touch_head', 'touch_body', 'touch_special']) {
-      const audio = new Audio(VOICE_BASE + key + '.wav')
+      const file = VOICE_FILES[key]
+      if (!file) continue
+      const audio = new Audio(VOICE_BASE + file)
       audio.preload = 'auto'
       audio.load()
     }
@@ -250,6 +325,8 @@
 
   window.__unicornVoice = {
     playVoice,
-    get widget() { return state.widget }
+    playPair,
+    get widget() { return state.widget },
+    get lastPair() { return state.lastPair }
   }
 })()
