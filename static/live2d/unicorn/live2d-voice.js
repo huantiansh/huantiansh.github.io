@@ -115,10 +115,10 @@
   }
 
   function bindCanvas() {
-    const canvases = document.querySelectorAll('canvas')
-    let canvas = document.querySelector('.oml2d-stage canvas')
+    let canvas = document.getElementById('oml2d-canvas')
+    if (!canvas) canvas = document.querySelector('.oml2d-stage canvas')
     if (!canvas) {
-      canvas = Array.from(canvases).find((el) => el.width > 100 && el.height > 100) || null
+      canvas = Array.from(document.querySelectorAll('canvas')).find((el) => el.width > 100 && el.height > 100) || null
     }
     if (!canvas) return false
     if (canvas.dataset.unicornVoice === '1') return true
@@ -232,7 +232,7 @@
   let tries = 0
   const timer = window.setInterval(() => {
     tries += 1
-    if (bindCanvas() || tries > 48) window.clearInterval(timer)
+    if (bindCanvas() || tries > 240) window.clearInterval(timer)
   }, 250)
 
   const preload = () => {

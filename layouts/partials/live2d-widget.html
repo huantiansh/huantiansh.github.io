@@ -6,6 +6,7 @@
   if (window.innerWidth < {{ $minWidth }}) return
   window.__unicornLive2dLoaded = true
   var base = '/live2d/'
+  var version = '{{ now.Unix }}'
   function loadScript(src, next) {
     var tag = document.createElement('script')
     tag.src = src
@@ -17,7 +18,7 @@
   function start() {
     loadScript(base + 'vendor/live2dcubismcore.min.js', function () {
       loadScript(base + 'vendor/oml2d.min.js', function () {
-        loadScript(base + 'unicorn/live2d-voice.js')
+        loadScript(base + 'unicorn/live2d-voice.js?v=' + version)
       })
     })
   }
