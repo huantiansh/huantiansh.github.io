@@ -300,6 +300,39 @@
   }
 }
 
+.sakura-music__volume {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px 0;
+  font-size: 0.75rem;
+  color: var(--sakura-color-text-muted);
+
+  label {
+    flex: none;
+    white-space: nowrap;
+  }
+
+  input[type="range"] {
+    flex: 1 1 auto;
+    min-width: 0;
+    margin: 0;
+    accent-color: var(--va-c-primary);
+    cursor: pointer;
+  }
+
+  span {
+    flex: none;
+    width: 3.2em;
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+  }
+}
+
+.sakura-music__panel .aplayer-volume-wrap {
+  display: none !important;
+}
+
 .sakura-music__panel-close {
   border: none;
   background: transparent;

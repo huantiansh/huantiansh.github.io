@@ -16,6 +16,7 @@ const TRACK_GAP_MS = 5000
 const FADE_OUT_LEAD_MS = 3000
 const FADE_OUT_MS = 2200
 const FADE_IN_MS = 1800
+const DEFAULT_VOLUME = 0.55
 
 function readState(storageKey) {
   try {
@@ -323,6 +324,28 @@ function bindPlayingIndicator(ap, root, toggle) {
   sync()
 }
 
+function bindVolumeControl(ap, input, valueEl) {
+  if (!input || !ap?.audio) return
+
+  const sync = () => {
+    const value = clamp(ap.audio.muted ? 0 : ap.audio.volume, 0, 1)
+    input.value = String(value)
+    if (valueEl) valueEl.textContent = `${Math.round(value * 100)}%`
+  }
+
+  input.addEventListener('input', () => {
+    const value = clamp(Number.parseFloat(input.value) || 0, 0, 1)
+    try {
+      ap.volume(value, true)
+    } catch {
+      ap.audio.volume = value
+    }
+    sync()
+  })
+  ap.on('volumechange', sync)
+  sync()
+}
+
 function bindStatePersistence(ap, storageKey, getPanelOpen, getAlbumId) {
   let saveTimer = 0
 
@@ -357,7 +380,10 @@ function bindStatePersistence(ap, storageKey, getPanelOpen, getAlbumId) {
 function restorePlaybackState(ap, storageKey, albumId) {
   const state = readState(storageKey)
   if (typeof state.volume === 'number') {
-    ap.volume(state.volume, true, false)
+    ap.volume(state.volume, true)
+  } else {
+    // 新访客默认 55%；老访客保留自己调过的音量。
+    ap.volume(DEFAULT_VOLUME, true)
   }
 
   // 新版本按专辑保存播放进度；旧版没有 albumId，不能拿旧索引去套新专辑。
@@ -391,7 +417,7 @@ function bindPlaybackEnhancements(ap, restoredState) {
   let gestureArmed = false
   let userPaused = restoredState?.paused === true
   let desiredVolume = clamp(
-    Number.isFinite(audio.volume) && audio.volume > 0.02 ? audio.volume : 0.7,
+    Number.isFinite(audio.volume) && audio.volume > 0.02 ? audio.volume : DEFAULT_VOLUME,
     0.05,
     1
   )
@@ -452,7 +478,7 @@ function bindPlaybackEnhancements(ap, restoredState) {
     if (userPaused || transitioning || (!audio.paused && started)) return
     clearStartTimer()
     started = true
-    desiredVolume = clamp(audio.volume > 0.02 ? audio.volume : desiredVolume || 0.7, 0.05, 1)
+    desiredVolume = clamp(audio.volume > 0.02 ? audio.volume : desiredVolume || DEFAULT_VOLUME, 0.05, 1)
     audio.volume = 0
     let played
     try {
@@ -492,7 +518,7 @@ function bindPlaybackEnhancements(ap, restoredState) {
     if (transitioning || !ap.list.audios.length) return
     transitioning = true
     clearStartTimer()
-    desiredVolume = clamp(audio.volume > 0.02 ? audio.volume : desiredVolume || 0.7, 0.05, 1)
+    desiredVolume = clamp(audio.volume > 0.02 ? audio.volume : desiredVolume || DEFAULT_VOLUME, 0.05, 1)
     fadeTo(0, FADE_OUT_MS, () => {
       try {
         ap.pause()
@@ -538,7 +564,7 @@ function bindPlaybackEnhancements(ap, restoredState) {
     started = true
     clearStartTimer()
     if (audio.volume < 0.02) {
-      fadeTo(desiredVolume || 0.7, FADE_IN_MS)
+      fadeTo(desiredVolume || DEFAULT_VOLUME, FADE_IN_MS)
     }
   })
 
@@ -555,7 +581,7 @@ function bindPlaybackEnhancements(ap, restoredState) {
     if (audio.paused) return
     userPaused = false
     started = true
-    desiredVolume = clamp(audio.volume > 0.02 ? audio.volume : desiredVolume || 0.7, 0.05, 1)
+    desiredVolume = clamp(audio.volume > 0.02 ? audio.volume : desiredVolume || DEFAULT_VOLUME, 0.05, 1)
     audio.volume = 0
     window.setTimeout(() => {
       if (!audio.paused && !transitioning) fadeTo(desiredVolume, FADE_IN_MS)
@@ -932,6 +958,8 @@ export function initMusicPlayer() {
   const errorEl = document.getElementById('sakura-music-error')
   const albumPicker = document.getElementById('sakura-music-album-picker')
   const albumSelect = document.getElementById('sakura-music-album')
+  const volumeInput = document.getElementById('sakura-music-volume')
+  const volumeValue = document.getElementById('sakura-music-volume-value')
   if (!toggle || !panel || !host || !loadingEl || !errorEl) return
 
   root.dataset.shellReady = '1'
@@ -1019,6 +1047,7 @@ export function initMusicPlayer() {
     playbackEnhancementsReset = bindPlaybackEnhancements(ap, restoredState)
     bindStatePersistence(ap, storageKey, () => panelOpen, () => currentAlbumId)
     bindPlayingIndicator(ap, root, toggle)
+    bindVolumeControl(ap, volumeInput, volumeValue)
     bindMusicPanelLayoutSync(ap, root, panel, toggle, () => panelOpen)
     setStatus('ready')
     refreshAPlayerLayout(ap, () => scheduleMusicPanelFit(root, panel, toggle))
