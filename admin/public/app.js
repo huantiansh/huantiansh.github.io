@@ -882,8 +882,13 @@ function renderAppearance(view) {
 
       <div class="card">
         <div class="section-title">
-          <div><h2>音乐库</h2><p class="muted small">文件放 static/music，命名「歌手 - 歌名.mp3」；同名 .lrc 和 cover.jpg 会被播放器识别。</p></div>
+          <div><h2>音乐库</h2><p class="muted small">文件放 static/music/&lt;专辑&gt;/，命名「序号 - 曲名 - 作者.m4a」；同名 .lrc 和专辑 cover.jpg 会被播放器识别。</p></div>
           <div class="actions">
+            ${(() => {
+              const albums = [...new Set((DATA.musicFiles || []).map((item) => item.album).filter(Boolean))]
+              const options = albums.length ? albums : ['芸开了']
+              return `<select id="music-upload-album" aria-label="上传到专辑">${options.map((album) => `<option value="${esc(album)}" ${album === '芸开了' ? 'selected' : ''}>${esc(album)}</option>`).join('')}</select>`
+            })()}
             <label class="btn">上传音乐<input type="file" id="music-file" accept=".mp3,.flac,.m4a,.ogg,.wav,audio/*" hidden></label>
             <button class="btn" type="button" id="rebuild-music">重建歌单</button>
           </div>
@@ -891,9 +896,9 @@ function renderAppearance(view) {
         <div class="grid">
           ${(DATA.musicFiles || []).map((item) => `
             <div class="media-card">
-              <div class="path">${esc(item.name)}<br><span class="muted">${(item.size / 1024 / 1024).toFixed(1)} MB</span></div>
+              <div class="path">${esc(item.name)}<br><span class="muted">${esc(item.album || '未分类')} · ${(item.size / 1024 / 1024).toFixed(1)} MB</span></div>
               <audio controls preload="none" src="${esc(previewUrl(item.path))}" style="width:100%;margin:8px 0"></audio>
-              <div class="actions"><button class="btn small danger" type="button" data-delete-music="${esc(item.name)}">删除</button></div>
+              <div class="actions"><button class="btn small danger" type="button" data-delete-music="${esc(item.name)}" data-delete-music-album="${esc(item.album || '')}">删除</button></div>
             </div>
           `).join('') || '<p class="muted">还没有音乐文件。</p>'}
         </div>
@@ -942,7 +947,8 @@ function renderAppearance(view) {
     if (!file) return
     event.target.value = ''
     try {
-      const response = await fetch(`/api/music/upload?name=${encodeURIComponent(file.name)}`, { method: 'POST', body: file })
+      const album = $('#music-upload-album')?.value || ''
+      const response = await fetch(`/api/music/upload?name=${encodeURIComponent(file.name)}&album=${encodeURIComponent(album)}`, { method: 'POST', body: file })
       const data = await response.json()
       if (!response.ok || data.ok === false) throw new Error(data.error || `HTTP ${response.status}`)
       setStatus('音乐已上传，记得重建歌单', 'ok')
@@ -962,7 +968,7 @@ function renderAppearance(view) {
     button.onclick = async () => {
       if (!confirm('删除这首歌？')) return
       try {
-        await postJson('/api/music/delete', { name: button.dataset.deleteMusic })
+        await postJson('/api/music/delete', { name: button.dataset.deleteMusic, album: button.dataset.deleteMusicAlbum || '' })
         setStatus('音乐已删除，记得重建歌单', 'ok')
         await reload()
       } catch (error) { setStatus(error.message, 'error') }

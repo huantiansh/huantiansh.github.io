@@ -473,7 +473,7 @@ enableRobotsTXT = true     # 生成 robots.txt（模板在 themes/aiovtue/layout
 # --- 音乐播放器（APlayer + 本地歌单）---
   # enable：是否显示播放器；单页可在 front matter 写 musicPlayer: false 关闭
   # type = 'local'：读取 static/music/playlist.json（由 scripts/build-music-playlist.mjs 生成）
-  # 把音频文件放进 static/music/，命名「歌手 - 歌名.mp3」，可选同名 .lrc 歌词与 cover.jpg 封面
+  # 每张专辑一个子目录：static/music/<专辑>/，曲目命名「序号 - 曲名 - 作者.m4a」；专辑封面 cover.jpg
   [params.music]
     enable = true
     position = "right"

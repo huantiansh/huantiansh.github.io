@@ -378,13 +378,14 @@ async function handleApi(req, res, url) {
 
   if (req.method === 'POST' && route === '/api/music/upload') {
     const name = url.searchParams.get('name') || `music-${Date.now()}.mp3`
+    const album = url.searchParams.get('album') || ''
     const buffer = await readBody(req, MAX_VIDEO)
-    return json(res, 200, { ok: true, media: saveMusic({ buffer, name }) })
+    return json(res, 200, { ok: true, media: saveMusic({ buffer, name, album }) })
   }
 
   if (req.method === 'POST' && route === '/api/music/delete') {
     const payload = await readJson(req)
-    return json(res, 200, { ok: true, ...deleteMusic(payload.name) })
+    return json(res, 200, { ok: true, ...deleteMusic(payload.name, payload.album) })
   }
 
   if (req.method === 'POST' && route === '/api/music/rebuild') {

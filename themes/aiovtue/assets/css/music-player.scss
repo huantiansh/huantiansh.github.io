@@ -267,6 +267,39 @@
   color: var(--sakura-color-text-muted);
 }
 
+.sakura-music__album-picker {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+  min-width: 0;
+  flex: 1 1 auto;
+
+  &[hidden] {
+    display: none;
+  }
+
+  label {
+    flex: none;
+    font-size: 0.75rem;
+    color: var(--sakura-color-text-muted);
+    white-space: nowrap;
+  }
+
+  select {
+    min-width: 0;
+    max-width: 150px;
+    padding: 3px 4px;
+    border: 1px solid rgba(128, 128, 128, 0.35);
+    border-radius: 6px;
+    background: var(--sakura-color-background);
+    color: inherit;
+    font: inherit;
+    font-size: 0.75rem;
+    cursor: pointer;
+  }
+}
+
 .sakura-music__panel-close {
   border: none;
   background: transparent;

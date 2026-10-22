@@ -239,6 +239,40 @@ function resetMusicHost(host) {
   host.querySelectorAll('.sakura-music__aplayer').forEach((el) => el.remove())
 }
 
+function normalizeLocalPlaylist(data) {
+  const rawAlbums = Array.isArray(data?.albums)
+    ? data.albums
+    : [{
+      id: 'default',
+      name: '默认专辑',
+      artist: '',
+      cover: '',
+      tracks: Array.isArray(data) ? data : data?.audio,
+    }]
+
+  const albums = rawAlbums
+    .map((album, index) => ({
+      id: String(album?.id || album?.name || `album-${index}`),
+      name: album?.name || album?.title || `专辑 ${index + 1}`,
+      artist: album?.artist || '',
+      cover: album?.cover || '',
+      tracks: Array.isArray(album?.tracks)
+        ? album.tracks
+        : (Array.isArray(album?.audio) ? album.audio : []),
+    }))
+    .filter((album) => album.tracks.length > 0)
+
+  if (!albums.length) {
+    throw new Error('本地音乐库为空：请把音频放进 static/music/ 后运行 npm run music')
+  }
+
+  const defaultAlbum = albums.some((album) => album.id === data?.defaultAlbum)
+    ? data.defaultAlbum
+    : albums[0].id
+
+  return { albums, defaultAlbum }
+}
+
 async function fetchLocalPlaylist(root) {
   const url = root.dataset.localPlaylist || LOCAL_PLAYLIST_DEFAULT
   let res
@@ -254,22 +288,17 @@ async function fetchLocalPlaylist(root) {
   } catch {
     throw new Error('本地歌单格式无效')
   }
-  const list = Array.isArray(data) ? data : data?.audio
-  if (!Array.isArray(list) || !list.length) {
-    throw new Error('本地音乐库为空：请把音频放进 static/music/ 后运行 npm run music')
-  }
-  return list
+  return normalizeLocalPlaylist(data)
 }
 
-async function mountLocalPlayer(root, host) {
+async function mountLocalPlayer(root, host, tracks) {
   resetMusicHost(host)
-  const audio = await fetchLocalPlaylist(root)
   const container = document.createElement('div')
   container.className = 'sakura-music__aplayer'
   host.appendChild(container)
   const ap = new window.APlayer({
     container,
-    audio,
+    audio: tracks,
     listFolded: false,
     listMaxHeight: '220px',
     preload: 'metadata',
@@ -294,7 +323,7 @@ function bindPlayingIndicator(ap, root, toggle) {
   sync()
 }
 
-function bindStatePersistence(ap, storageKey, getPanelOpen) {
+function bindStatePersistence(ap, storageKey, getPanelOpen, getAlbumId) {
   let saveTimer = 0
 
   const save = () => {
@@ -307,6 +336,7 @@ function bindStatePersistence(ap, storageKey, getPanelOpen) {
         volume: ap.audio.volume,
         paused: ap.audio.paused,
         panelOpen: getPanelOpen(),
+        ...(getAlbumId?.() ? { albumId: getAlbumId() } : {}),
       })
     }, 200)
   }
@@ -324,14 +354,16 @@ function bindStatePersistence(ap, storageKey, getPanelOpen) {
   })
 }
 
-function restorePlaybackState(ap, storageKey) {
+function restorePlaybackState(ap, storageKey, albumId) {
   const state = readState(storageKey)
   if (typeof state.volume === 'number') {
     ap.volume(state.volume, true, false)
   }
 
-  const index = Number.isInteger(state.index) ? state.index : 0
-  const time = typeof state.time === 'number' ? state.time : 0
+  // 新版本按专辑保存播放进度；旧版没有 albumId，不能拿旧索引去套新专辑。
+  const canRestoreTrack = !albumId || state.albumId === albumId
+  const index = canRestoreTrack && Number.isInteger(state.index) ? state.index : 0
+  const time = canRestoreTrack && typeof state.time === 'number' ? state.time : 0
 
   const apply = () => {
     if (index > 0 && index < ap.list.audios.length) {
@@ -342,7 +374,7 @@ function restorePlaybackState(ap, storageKey) {
 
   if (ap.list.audios.length) apply()
   else ap.on('loadeddata', apply)
-  return state
+  return canRestoreTrack ? state : { ...state, index, time }
 }
 
 function bindPlaybackEnhancements(ap, restoredState) {
@@ -541,6 +573,17 @@ function bindPlaybackEnhancements(ap, restoredState) {
   if (!userPaused) {
     if (ap.list.audios.length) scheduleDelayedStart()
     else window.setTimeout(scheduleDelayedStart, 500)
+  }
+
+  return () => {
+    clearStartTimer()
+    if (gapTimer) {
+      window.clearTimeout(gapTimer)
+      gapTimer = 0
+    }
+    cancelFade()
+    transitioning = false
+    started = false
   }
 }
 
@@ -887,6 +930,8 @@ export function initMusicPlayer() {
   const host = document.getElementById('sakura-music-meting-host')
   const loadingEl = document.getElementById('sakura-music-loading')
   const errorEl = document.getElementById('sakura-music-error')
+  const albumPicker = document.getElementById('sakura-music-album-picker')
+  const albumSelect = document.getElementById('sakura-music-album')
   if (!toggle || !panel || !host || !loadingEl || !errorEl) return
 
   root.dataset.shellReady = '1'
@@ -903,6 +948,9 @@ export function initMusicPlayer() {
   let aplayerRef = null
   let playerReadyPromise = null
   let playerBound = false
+  let albumData = null
+  let currentAlbumId = ''
+  let playbackEnhancementsReset = null
 
   const setStatus = (state, message = '') => {
     loadingEl.hidden = state !== 'loading'
@@ -914,16 +962,62 @@ export function initMusicPlayer() {
     }
   }
 
-  const bindPlayer = (ap) => {
+  const findAlbum = (albumId) => albumData?.albums.find((album) => album.id === albumId) || null
+
+  const syncAlbumPicker = () => {
+    if (!albumPicker || !albumSelect) return
+    if (!albumData) {
+      albumPicker.hidden = true
+      return
+    }
+
+    if (albumSelect.dataset.populated !== '1') {
+      albumSelect.replaceChildren()
+      for (const album of albumData.albums) {
+        const option = document.createElement('option')
+        option.value = album.id
+        option.textContent = album.artist ? `${album.name} · ${album.artist}` : album.name
+        albumSelect.appendChild(option)
+      }
+      albumSelect.dataset.populated = '1'
+    }
+
+    const multipleAlbums = albumData.albums.length > 1
+    albumPicker.hidden = !multipleAlbums
+    albumSelect.disabled = !multipleAlbums
+    if (currentAlbumId) albumSelect.value = currentAlbumId
+  }
+
+  const chooseInitialAlbum = () => {
+    const state = readState(storageKey)
+    const saved = albumData?.albums.find((album) => album.id === state.albumId)
+    return saved
+      || findAlbum(albumData?.defaultAlbum)
+      || albumData?.albums[0]
+      || null
+  }
+
+  const loadAlbumData = async () => {
+    if (albumData) return albumData
+    albumData = await fetchLocalPlaylist(root)
+    syncAlbumPicker()
+    return albumData
+  }
+
+  const bindPlayer = (ap, album) => {
     if (playerBound) return ap
     playerBound = true
     aplayerRef = ap
+    currentAlbumId = album?.id || ''
+    if (currentAlbumId) root.dataset.album = currentAlbumId
+    syncAlbumPicker()
     if (window.location.hostname === '127.0.0.1' || window.location.hostname === 'localhost') {
       window.__sakuraMusic = ap
+      window.__sakuraAlbum = album || null
     }
-    const restoredState = restorePlaybackState(ap, storageKey)
-    bindPlaybackEnhancements(ap, restoredState)
-    bindStatePersistence(ap, storageKey, () => panelOpen)
+    const restoredState = restorePlaybackState(ap, storageKey, currentAlbumId)
+    playbackEnhancementsReset = bindPlaybackEnhancements(ap, restoredState)
+    bindStatePersistence(ap, storageKey, () => panelOpen, () => currentAlbumId)
     bindPlayingIndicator(ap, root, toggle)
     bindMusicPanelLayoutSync(ap, root, panel, toggle, () => panelOpen)
     setStatus('ready')
@@ -931,17 +1025,70 @@ export function initMusicPlayer() {
     return ap
   }
 
-  const ensurePlayer = () => {
-    if (aplayerRef) return Promise.resolve(aplayerRef)
+  const switchAlbum = async (albumId) => {
+    if (!isLocal) return ensurePlayer()
+    if (!albumData) await loadAlbumData()
+
+    const album = findAlbum(albumId)
+    if (!album) return aplayerRef || ensurePlayer()
+
+    if (!aplayerRef) return ensurePlayer(album.id)
+    if (album.id === currentAlbumId) {
+      syncAlbumPicker()
+      return aplayerRef
+    }
+
+    const ap = aplayerRef
+    const wasPlaying = !ap.audio.paused
+    const previousVolume = ap.audio.volume
+    currentAlbumId = album.id
+    root.dataset.album = album.id
+    playbackEnhancementsReset?.()
+
+    try {
+      ap.list.clear()
+      ap.list.add(album.tracks)
+      ap.list.switch(0)
+      if (previousVolume > 0.02) ap.audio.volume = previousVolume
+      if (wasPlaying) {
+        const played = ap.play()
+        if (played && typeof played.catch === 'function') played.catch(() => {})
+      }
+      if (window.location.hostname === '127.0.0.1' || window.location.hostname === 'localhost') {
+        window.__sakuraAlbum = album
+      }
+      syncAlbumPicker()
+      setStatus('ready')
+      refreshAPlayerLayout(ap, () => scheduleMusicPanelFit(root, panel, toggle))
+    } catch (err) {
+      console.warn('[music-player] album switch failed:', err)
+      setStatus('error', `专辑切换失败：${err?.message || '未知错误'}`)
+      throw err
+    }
+
+    return ap
+  }
+
+  const ensurePlayer = (requestedAlbumId = '') => {
+    if (aplayerRef) {
+      if (requestedAlbumId && requestedAlbumId !== currentAlbumId) {
+        return switchAlbum(requestedAlbumId)
+      }
+      return Promise.resolve(aplayerRef)
+    }
     if (playerReadyPromise) return playerReadyPromise
 
     playerReadyPromise = (async () => {
       setStatus('loading')
       await ensureMusicLibs(!isLocal)
-      const { ap } = isLocal
-        ? await mountLocalPlayer(root, host)
-        : await mountWithFallback(root, host)
-      return bindPlayer(ap)
+      if (!isLocal) {
+        const { ap } = await mountWithFallback(root, host)
+        return bindPlayer(ap, null)
+      }
+      await loadAlbumData()
+      const album = (requestedAlbumId && findAlbum(requestedAlbumId)) || chooseInitialAlbum()
+      const { ap } = await mountLocalPlayer(root, host, album.tracks)
+      return bindPlayer(ap, album)
     })().catch((err) => {
       console.warn('[music-player]', err)
       const message = err?.message
@@ -1029,6 +1176,10 @@ export function initMusicPlayer() {
   closeBtn?.addEventListener('click', (event) => {
     event.stopPropagation()
     setPanelOpen(false)
+  })
+
+  albumSelect?.addEventListener('change', () => {
+    switchAlbum(albumSelect.value).catch(() => {})
   })
 
   document.addEventListener('click', (event) => {
