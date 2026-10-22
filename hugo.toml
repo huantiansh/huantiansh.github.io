@@ -32,7 +32,7 @@
 baseURL = 'https://huantiansh.github.io/'
 locale = 'zh-cn'
 defaultContentLanguage = 'zh'
-title = "huantiansh"
+title = "我有哥哥——呀。"
 theme = 'aiovtue'           # 主题目录：themes/aiovtue/
 hasCJKLanguage = true      # 启用中文分词（搜索、摘要等）
 enableRobotsTXT = true     # 生成 robots.txt（模板在 themes/aiovtue/layouts/robots.txt）
@@ -88,7 +88,7 @@ enableRobotsTXT = true     # 生成 robots.txt（模板在 themes/aiovtue/layout
 # 站点参数（主题通过 .Site.Params 读取）
 # =============================================================================
 [params]
-  subtitle = "我有哥哥——呀。"
+  subtitle = ""
   description = "因为我有哥哥——，所以就算我有问题也无所谓。"
   primaryColor = "#6F86D6"
   favicon = "/hero/favicon.png"
@@ -297,7 +297,7 @@ enableRobotsTXT = true     # 生成 robots.txt（模板在 themes/aiovtue/layout
     [[params.notice.sections]]
       label = "--- 欢迎 ---"
       lines = [
-        "对线生活中......面包厂......",
+        "对线生活中......",
       ]
 
   [[params.social]]
