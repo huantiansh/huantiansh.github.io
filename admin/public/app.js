@@ -857,6 +857,25 @@ function renderAppearance(view) {
       </div>
 
       <div class="card">
+        <div class="section-title">
+          <div><h2>音乐库</h2><p class="muted small">文件放 static/music，命名「歌手 - 歌名.mp3」；同名 .lrc 和 cover.jpg 会被播放器识别。</p></div>
+          <div class="actions">
+            <label class="btn">上传音乐<input type="file" id="music-file" accept=".mp3,.flac,.m4a,.ogg,.wav,audio/*" hidden></label>
+            <button class="btn" type="button" id="rebuild-music">重建歌单</button>
+          </div>
+        </div>
+        <div class="grid">
+          ${(DATA.musicFiles || []).map((item) => `
+            <div class="media-card">
+              <div class="path">${esc(item.name)}<br><span class="muted">${(item.size / 1024 / 1024).toFixed(1)} MB</span></div>
+              <audio controls preload="none" src="${esc(previewUrl(item.path))}" style="width:100%;margin:8px 0"></audio>
+              <div class="actions"><button class="btn small danger" type="button" data-delete-music="${esc(item.name)}">删除</button></div>
+            </div>
+          `).join('') || '<p class="muted">还没有音乐文件。</p>'}
+        </div>
+      </div>
+
+      <div class="card">
         <h2>组件</h2>
         <div class="grid grid-2">
           <div class="field"><label class="check"><input type="checkbox" id="music-enable" ${c.music?.enable ? 'checked' : ''}> 启用音乐播放器</label></div>
@@ -894,6 +913,37 @@ function renderAppearance(view) {
     $('#social-rows').insertAdjacentHTML('beforeend', socialRowHtml())
     bindRemove(view)
   }
+  $('#music-file').onchange = async (event) => {
+    const file = event.target.files?.[0]
+    if (!file) return
+    event.target.value = ''
+    try {
+      const response = await fetch(`/api/music/upload?name=${encodeURIComponent(file.name)}`, { method: 'POST', body: file })
+      const data = await response.json()
+      if (!response.ok || data.ok === false) throw new Error(data.error || `HTTP ${response.status}`)
+      setStatus('音乐已上传，记得重建歌单', 'ok')
+      await reload()
+    } catch (error) { setStatus(error.message, 'error') }
+  }
+  $('#rebuild-music').onclick = async () => {
+    const data = await runAction('/api/music/rebuild')
+    if (data.ok) {
+      setStatus('歌单已重建', 'ok')
+      await reload()
+    } else {
+      setStatus(data.error || data.stderr || '重建失败', 'error')
+    }
+  }
+  $$('[data-delete-music]', view).forEach((button) => {
+    button.onclick = async () => {
+      if (!confirm('删除这首歌？')) return
+      try {
+        await postJson('/api/music/delete', { name: button.dataset.deleteMusic })
+        setStatus('音乐已删除，记得重建歌单', 'ok')
+        await reload()
+      } catch (error) { setStatus(error.message, 'error') }
+    }
+  })
   $('#appearance-form').onsubmit = async (event) => {
     event.preventDefault()
     const noticeSections = $$('.notice-row', view).map((row) => ({

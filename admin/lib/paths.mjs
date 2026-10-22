@@ -8,6 +8,7 @@ export const CONTENT_DIR = path.join(PROJECT_ROOT, 'content')
 export const POSTS_DIR = path.join(CONTENT_DIR, 'posts')
 export const STATIC_DIR = path.join(PROJECT_ROOT, 'static')
 export const UPLOADS_DIR = path.join(STATIC_DIR, 'uploads')
+export const MUSIC_DIR = path.join(STATIC_DIR, 'music')
 export const BACKUP_DIR = path.join(ADMIN_ROOT, 'backups')
 export const HUGO_TOML = path.join(PROJECT_ROOT, 'hugo.toml')
 export const ADMIN_PORT = 4321
@@ -69,4 +70,5 @@ export function ensureUploadDirs() {
   for (const dir of ['covers', 'hero', 'videos', 'originals']) {
     ensureDir(path.join(UPLOADS_DIR, dir))
   }
+  ensureDir(MUSIC_DIR)
 }

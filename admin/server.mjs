@@ -21,6 +21,7 @@ import {
 import { createDoc, readDoc, writeDoc } from './lib/frontmatter.mjs'
 import { readConfig, patchConfig } from './lib/toml.mjs'
 import { cropImage, deleteMedia, listMedia, saveUpload, saveVideo } from './lib/media.mjs'
+import { deleteMusic, listMusic, saveMusic } from './lib/music.mjs'
 
 const PUBLIC_DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), 'public')
 const MAX_JSON = 35 * 1024 * 1024
@@ -180,6 +181,7 @@ function getState() {
     pages: listPages(),
     posts: listPosts(),
     media: listMedia(),
+    musicFiles: listMusic(),
     git: gitStatus(),
     preview: {
       running: Boolean(previewProcess),
@@ -372,6 +374,22 @@ async function handleApi(req, res, url) {
   if (req.method === 'POST' && route === '/api/media/delete') {
     const payload = await readJson(req)
     return json(res, 200, { ok: true, ...deleteMedia(payload.rel) })
+  }
+
+  if (req.method === 'POST' && route === '/api/music/upload') {
+    const name = url.searchParams.get('name') || `music-${Date.now()}.mp3`
+    const buffer = await readBody(req, MAX_VIDEO)
+    return json(res, 200, { ok: true, media: saveMusic({ buffer, name }) })
+  }
+
+  if (req.method === 'POST' && route === '/api/music/delete') {
+    const payload = await readJson(req)
+    return json(res, 200, { ok: true, ...deleteMusic(payload.name) })
+  }
+
+  if (req.method === 'POST' && route === '/api/music/rebuild') {
+    const result = run(process.execPath, ['scripts/build-music-playlist.mjs'])
+    return json(res, result.code === 0 ? 200 : 500, { ok: result.code === 0, ...result, musicFiles: listMusic() })
   }
 
   if (req.method === 'POST' && route === '/api/build') {
