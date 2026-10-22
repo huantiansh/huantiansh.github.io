@@ -6,5 +6,59 @@
 <script src="{{ `/signature/signature.js` | relURL }}" defer></script>
 {{- end -}}
 <script src="//busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js" defer></script>
+<script>
+(function () {
+  var source = '//busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js'
+  var ids = ['site_uv', 'site_pv', 'page_pv']
+  var attempts = 0
+  var maxAttempts = 2
+  var waiting = false
+
+  function isLoading() {
+    return ids.some(function (id) {
+      var el = document.getElementById('busuanzi_value_' + id)
+      return el && /加载中/.test(el.textContent || '')
+    })
+  }
+
+  function markUnavailable() {
+    ids.forEach(function (id) {
+      var el = document.getElementById('busuanzi_value_' + id)
+      if (el && /加载中/.test(el.textContent || '')) el.textContent = '暂不可用'
+    })
+  }
+
+  function check() {
+    if (!isLoading()) return
+    if (attempts >= maxAttempts) {
+      markUnavailable()
+      return
+    }
+    if (waiting) return
+    waiting = true
+    attempts += 1
+
+    var script = document.createElement('script')
+    script.src = source + (source.indexOf('?') === -1 ? '?' : '&') + 'retry=' + Date.now()
+    script.async = true
+    var finish = function () {
+      if (!waiting) return
+      waiting = false
+      window.setTimeout(check, 2500)
+    }
+    script.onload = finish
+    script.onerror = finish
+    document.body.appendChild(script)
+    window.setTimeout(finish, 7000)
+  }
+
+  window.addEventListener('load', function () {
+    window.setTimeout(check, 3500)
+    window.setTimeout(function () {
+      if (isLoading()) markUnavailable()
+    }, 18000)
+  })
+})()
+</script>
 {{ $js := resources.Get "js/main.js" | js.Build | minify | fingerprint }}
 <script src="{{ $js.RelPermalink }}" integrity="{{ $js.Data.Integrity }}" crossorigin="anonymous" defer></script>

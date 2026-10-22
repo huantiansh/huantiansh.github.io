@@ -3,5 +3,6 @@
 title: "加个好友又如何？"
 layout: "links"
 cover: "/uploads/covers/links-1792645533623.jpg"
+live2d: false
 ---
 

@@ -326,7 +326,7 @@ export async function initLinksRssSpotlight() {
 
   if (!feeds.length) return
 
-  const defaultCover = section.dataset.defaultCover || '/hero/tt3.png'
+  const defaultCover = section.dataset.defaultCover || '/hero/hero-night.jpg'
   const pool = shuffleArray(buildLinksRssPool(feeds))
   if (!pool.length) return
 

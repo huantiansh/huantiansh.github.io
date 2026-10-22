@@ -609,16 +609,43 @@ async function mountUtterances(root, { repo, issueTerm, label } = {}) {
   root.appendChild(script)
 
   if (utterancesObserver) utterancesObserver.disconnect()
-  utterancesObserver = new MutationObserver(() => {
+  let lastUtteranceTheme = theme
+  let themePoll = 0
+  let themeAttempts = 0
+
+  const applyUtteranceTheme = () => {
     const iframe = root.querySelector('iframe.utterances-frame')
-    if (!iframe?.contentWindow) return
+    if (!iframe?.contentWindow || iframe.dataset.sakuraThemeReady !== '1') return
     const nextTheme = document.documentElement.classList.contains('dark') ? 'github-dark' : 'github-light'
+    if (nextTheme === lastUtteranceTheme) return
+    lastUtteranceTheme = nextTheme
     iframe.contentWindow.postMessage({ type: 'set-theme', theme: nextTheme }, 'https://utteranc.es')
-  })
+  }
+
+  const bindUtteranceTheme = () => {
+    const iframe = root.querySelector('iframe.utterances-frame')
+    if (!iframe) {
+      if (themeAttempts < 40) {
+        themeAttempts += 1
+        themePoll = window.setTimeout(bindUtteranceTheme, 250)
+      }
+      return
+    }
+    window.clearTimeout(themePoll)
+    if (iframe.dataset.sakuraThemeBound === '1') return
+    iframe.dataset.sakuraThemeBound = '1'
+    iframe.addEventListener('load', () => {
+      iframe.dataset.sakuraThemeReady = '1'
+      applyUtteranceTheme()
+    }, { once: true })
+  }
+
+  utterancesObserver = new MutationObserver(applyUtteranceTheme)
   utterancesObserver.observe(document.documentElement, {
     attributes: true,
     attributeFilter: ['class'],
   })
+  bindUtteranceTheme()
   return true
 }
 

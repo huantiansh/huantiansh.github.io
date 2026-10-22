@@ -355,7 +355,7 @@ enableRobotsTXT = true     # 生成 robots.txt（模板在 themes/aiovtue/layout
     navigationMerge = true # 合并上一篇/下一篇导航样式
 
   # --- 评论系统（文章 / 友链 / 留言页共用）---
-  # provider 可选：waline | twikoo
+  # provider 可选：utterances | waline | twikoo
   # 单篇文章可在 front matter 写 comment: false 关闭评论区
   [params.comment]
     provider = "utterances"
@@ -368,18 +368,17 @@ enableRobotsTXT = true     # 生成 robots.txt（模板在 themes/aiovtue/layout
     label = "comment"
 
   # --- Waline 评论（https://waline.js.org/）---
-  # 仅当 params.comment.provider = waline 时生效；当前使用 twikoo，此处留作切换备用
+  # 当前未启用，保留作切换备用
   [params.waline]
     serverURL = 'https://your-waline-url'                                # 切换到 waline 时填写服务端地址（末尾不要加 /）
     placeholder = '分享你的想法...'
 
-  # --- Twikoo 评论（仅当 params.comment.provider = twikoo 时生效）---
-  # 留空 envId 时评论区显示配置提示，不影响站点其它功能
-  # visitorEnable：文章访问量统计（需 provider=twikoo 且已配置 envId）
-  # COMMENT_PLACEHOLDER 请在 Twikoo 管理后台「配置」中设置
+  # --- Twikoo 评论（当前未启用，保留作切换备用）---
+  # 仅当 params.comment.provider = twikoo 时生效
+  # visitorEnable：Twikoo 文章访问量统计（当前使用 Utterances，不启用）
   [params.twikoo]
     envId = 'https://your-twikoo-url'
-    visitorEnable = true   # 开启文章访问数量统计，基于twikoo
+    visitorEnable = false
 
   # --- 留言页信封动画图片（文件在 static/envelope/）---
   [params.envelope]

@@ -325,7 +325,7 @@ export function readConfig() {
     description: read(findHeader(lines, '[params]'), 'description') ?? '',
     primaryColor: read(findHeader(lines, '[params]'), 'primaryColor') ?? '#6F86D6',
     favicon: read(findHeader(lines, '[params]'), 'favicon') ?? '/hero/avatar.png',
-    defaultCover: read(findHeader(lines, '[params]'), 'defaultCover') ?? '/hero/tt3.png',
+    defaultCover: read(findHeader(lines, '[params]'), 'defaultCover') ?? '/hero/hero-night.jpg',
     post: {
       fontSize: read(findHeader(lines, '[params.post]'), 'fontSize') ?? '1.25rem'
     },

@@ -27,6 +27,14 @@ jobs:
           hugo-version: "0.163.3"
           extended: true
 
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Refresh friend RSS
+        run: node scripts/fetch-links-rss.mjs
+
       - name: Build site
         run: hugo --minify --cleanDestinationDir
 
