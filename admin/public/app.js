@@ -218,6 +218,10 @@ function renderSite(view) {
       <div class="card">
         <h2>默认封面与页脚</h2>
         <div class="field"><label>文章默认封面</label><select id="site-default-cover">${mediaOptions(c.defaultCover, { empty: true })}</select></div>
+        <div class="actions" style="margin-bottom:12px">
+          <label class="btn small">上传并裁剪默认封面<input type="file" id="site-default-cover-file" accept="image/*" hidden></label>
+          <span class="muted small">图片会按 16:9 裁剪并立即保存。</span>
+        </div>
         <div class="grid grid-3">
           <div class="field"><label>版权起始年</label><input type="text" id="site-footer-since" value="${esc(c.footer?.since ?? '')}"></div>
           <div class="field"><label>运行计时起点</label><input type="text" id="site-footer-runtime" value="${esc(c.footer?.runtimeSince ?? '')}"></div>
@@ -271,6 +275,26 @@ function renderSite(view) {
     event.target.value = ''
     const source = await readFileAsDataURL(file)
     openCropper({ source, aspect: 1, target: 'hero/favicon.png', width: 64, height: 64, update: 'favicon', onDone: reload })
+  }
+  $('#site-default-cover-file').onchange = async (event) => {
+    const file = event.target.files?.[0]
+    if (!file) return
+    event.target.value = ''
+    const source = await readFileAsDataURL(file)
+    openCropper({
+      source,
+      aspect: 16 / 9,
+      target: `uploads/covers/default-${timestamp()}.jpg`,
+      width: 1600,
+      height: 900,
+      onDone: async (path) => {
+        try {
+          await postJson('/api/config', { config: { defaultCover: path } })
+          setStatus('默认封面已更新', 'ok')
+          await reload()
+        } catch (error) { setStatus(error.message, 'error') }
+      }
+    })
   }
 }
 

@@ -1,7 +1,8 @@
 ---
 title: "追番"
 layout: "bangumi"
-cover: "/hero/hero-2.mp4"
+cover: "/uploads/covers/bangumi-1792645546275.jpg"
 comment: false
 icon: "mdi:television-play"
 ---
+

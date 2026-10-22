@@ -3,7 +3,7 @@
 # 页面壳子在 content/links.md，卡片内容在此维护
 
 title: 来加入我们叭
-cover: "/hero/sp1.mp4"
+cover: "/uploads/covers/links-1792645533623.jpg"
 
 # linkGroups：友链分组，可增删组；每组 links 为友链卡片列表
 linkGroups:

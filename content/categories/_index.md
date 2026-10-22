@@ -1,6 +1,6 @@
 ---
 title: "分类"
 icon: "ri:folder-line"
-cover: "/hero/tt2.png"
+cover: "/uploads/covers/categories-1792645780082.jpg"
 ---
 
