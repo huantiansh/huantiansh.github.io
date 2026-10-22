@@ -9,6 +9,13 @@ const DEFAULT_APIS = [
   'https://api.injahow.cn/meting/?server=:server&type=:type&id=:id',
   'https://meting.qjqq.cn/?server=:server&type=:type&id=:id',
 ]
+const PAGE_LOAD_START = typeof performance !== 'undefined' ? performance.now() : Date.now()
+const START_DELAY_MIN = 10000
+const START_DELAY_MAX = 30000
+const TRACK_GAP_MS = 5000
+const FADE_OUT_LEAD_MS = 3000
+const FADE_OUT_MS = 2200
+const FADE_IN_MS = 1800
 
 function readState(storageKey) {
   try {
@@ -267,6 +274,8 @@ async function mountLocalPlayer(root, host) {
     listMaxHeight: '220px',
     preload: 'metadata',
     mutex: true,
+    order: 'list',
+    loop: 'all',
     theme: root.dataset.theme || '#DF9193',
   })
   return { ap }
@@ -323,18 +332,216 @@ function restorePlaybackState(ap, storageKey) {
 
   const index = Number.isInteger(state.index) ? state.index : 0
   const time = typeof state.time === 'number' ? state.time : 0
-  const shouldPlay = state.paused === false
 
   const apply = () => {
     if (index > 0 && index < ap.list.audios.length) {
       ap.list.switch(index)
     }
     if (time > 0) ap.seek(time)
-    if (shouldPlay) ap.play()
   }
 
   if (ap.list.audios.length) apply()
   else ap.on('loadeddata', apply)
+  return state
+}
+
+function bindPlaybackEnhancements(ap, restoredState) {
+  const audio = ap?.audio
+  if (!audio) return
+
+  let startTimer = 0
+  let gapTimer = 0
+  let fadeFrame = 0
+  let fadeToken = 0
+  let fading = false
+  let transitioning = false
+  let started = false
+  let gestureArmed = false
+  let userPaused = restoredState?.paused === true
+  let desiredVolume = clamp(
+    Number.isFinite(audio.volume) && audio.volume > 0.02 ? audio.volume : 0.7,
+    0.05,
+    1
+  )
+
+  const clearStartTimer = () => {
+    if (startTimer) {
+      window.clearTimeout(startTimer)
+      startTimer = 0
+    }
+  }
+
+  const cancelFade = () => {
+    fadeToken += 1
+    if (fadeFrame) window.cancelAnimationFrame(fadeFrame)
+    fadeFrame = 0
+    fading = false
+  }
+
+  const fadeTo = (target, duration, done) => {
+    const token = ++fadeToken
+    if (fadeFrame) window.cancelAnimationFrame(fadeFrame)
+    fading = true
+    const from = audio.volume
+    const startedAt = performance.now()
+    const tick = (now) => {
+      if (token !== fadeToken) return
+      const progress = Math.min(1, (now - startedAt) / duration)
+      audio.volume = from + (target - from) * progress
+      if (progress < 1) {
+        fadeFrame = window.requestAnimationFrame(tick)
+        return
+      }
+      fading = false
+      fadeFrame = 0
+      if (target > 0.02 && typeof ap.volume === 'function') {
+        ap.volume(target, true, false)
+      }
+      done?.()
+    }
+    fadeFrame = window.requestAnimationFrame(tick)
+  }
+
+  const armGestureFallback = () => {
+    if (gestureArmed) return
+    gestureArmed = true
+    const retry = () => {
+      document.removeEventListener('pointerdown', retry)
+      document.removeEventListener('keydown', retry)
+      gestureArmed = false
+      started = false
+      startPlayback()
+    }
+    document.addEventListener('pointerdown', retry, { once: true })
+    document.addEventListener('keydown', retry, { once: true })
+  }
+
+  const startPlayback = () => {
+    if (userPaused || transitioning || (!audio.paused && started)) return
+    clearStartTimer()
+    started = true
+    desiredVolume = clamp(audio.volume > 0.02 ? audio.volume : desiredVolume || 0.7, 0.05, 1)
+    audio.volume = 0
+    let played
+    try {
+      played = ap.play()
+    } catch (_) {
+      started = false
+      armGestureFallback()
+      return
+    }
+    if (played && typeof played.catch === 'function') {
+      played.catch(() => {
+        started = false
+        armGestureFallback()
+      })
+    }
+    window.setTimeout(() => {
+      if (audio.paused && !userPaused && !transitioning) {
+        started = false
+        armGestureFallback()
+      }
+    }, 900)
+  }
+
+  const scheduleDelayedStart = () => {
+    if (userPaused || started) return
+    clearStartTimer()
+    const targetDelay = START_DELAY_MIN + Math.random() * (START_DELAY_MAX - START_DELAY_MIN)
+    const elapsed = performance.now() - PAGE_LOAD_START
+    const wait = Math.max(1200, targetDelay - elapsed)
+    startTimer = window.setTimeout(() => {
+      startTimer = 0
+      startPlayback()
+    }, wait)
+  }
+
+  const beginTrackTransition = () => {
+    if (transitioning || !ap.list.audios.length) return
+    transitioning = true
+    clearStartTimer()
+    desiredVolume = clamp(audio.volume > 0.02 ? audio.volume : desiredVolume || 0.7, 0.05, 1)
+    fadeTo(0, FADE_OUT_MS, () => {
+      try {
+        ap.pause()
+      } catch (_) { /* ignore */ }
+      gapTimer = window.setTimeout(() => {
+        gapTimer = 0
+        const next = (ap.list.index + 1) % ap.list.audios.length
+        ap.list.switch(next)
+        audio.volume = 0
+        let played
+        try {
+          played = ap.play()
+        } catch (_) {
+          transitioning = false
+          return
+        }
+        const finish = () => {
+          if (!transitioning) return
+          fadeTo(desiredVolume, FADE_IN_MS, () => {
+            transitioning = false
+          })
+        }
+        if (played && typeof played.then === 'function') {
+          played.then(finish).catch(() => { transitioning = false })
+        } else {
+          window.setTimeout(finish, 80)
+        }
+      }, TRACK_GAP_MS)
+    })
+  }
+
+  const onTimeUpdate = () => {
+    if (transitioning || userPaused || audio.paused) return
+    const remaining = audio.duration - audio.currentTime
+    if (Number.isFinite(remaining) && remaining > 0.05 && remaining <= FADE_OUT_LEAD_MS / 1000) {
+      beginTrackTransition()
+    }
+  }
+
+  ap.on('play', () => {
+    if (transitioning) return
+    userPaused = false
+    started = true
+    clearStartTimer()
+    if (audio.volume < 0.02) {
+      fadeTo(desiredVolume || 0.7, FADE_IN_MS)
+    }
+  })
+
+  ap.on('pause', () => {
+    if (transitioning) return
+    userPaused = true
+    clearStartTimer()
+    cancelFade()
+  })
+
+  ap.on('listswitch', () => {
+    if (transitioning) return
+    clearStartTimer()
+    if (audio.paused) return
+    userPaused = false
+    started = true
+    desiredVolume = clamp(audio.volume > 0.02 ? audio.volume : desiredVolume || 0.7, 0.05, 1)
+    audio.volume = 0
+    window.setTimeout(() => {
+      if (!audio.paused && !transitioning) fadeTo(desiredVolume, FADE_IN_MS)
+    }, 80)
+  })
+
+  ap.on('volumechange', () => {
+    if (!fading && !transitioning && audio.volume > 0.02) {
+      desiredVolume = audio.volume
+    }
+  })
+
+  audio.addEventListener('timeupdate', onTimeUpdate, { passive: true })
+
+  if (!userPaused) {
+    if (ap.list.audios.length) scheduleDelayedStart()
+    else window.setTimeout(scheduleDelayedStart, 500)
+  }
 }
 
 function refreshAPlayerLayout(ap, onLayout) {
@@ -711,7 +918,11 @@ export function initMusicPlayer() {
     if (playerBound) return ap
     playerBound = true
     aplayerRef = ap
-    restorePlaybackState(ap, storageKey)
+    if (window.location.hostname === '127.0.0.1' || window.location.hostname === 'localhost') {
+      window.__sakuraMusic = ap
+    }
+    const restoredState = restorePlaybackState(ap, storageKey)
+    bindPlaybackEnhancements(ap, restoredState)
     bindStatePersistence(ap, storageKey, () => panelOpen)
     bindPlayingIndicator(ap, root, toggle)
     bindMusicPanelLayoutSync(ap, root, panel, toggle, () => panelOpen)
@@ -792,7 +1003,18 @@ export function initMusicPlayer() {
   })
 
   const stored = readState(storageKey)
-  if (stored.panelOpen) openPanel()
+  if (stored.panelOpen) {
+    openPanel()
+  } else if (stored.paused !== true) {
+    const warm = () => {
+      ensurePlayer().catch(() => {})
+    }
+    if ('requestIdleCallback' in window) {
+      requestIdleCallback(warm, { timeout: 8000 })
+    } else {
+      window.setTimeout(warm, 3000)
+    }
+  }
 
   toggle?.addEventListener('click', (event) => {
     event.stopPropagation()

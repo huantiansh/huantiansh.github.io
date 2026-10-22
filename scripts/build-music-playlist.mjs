@@ -23,11 +23,19 @@ const audio = files.map((file) => {
   const stem = basename(file, ext)
   let artist = ''
   let name = stem
+  let track = ''
 
-  const matched = stem.match(/^(.+?)\s*-\s*(.+)$/)
-  if (matched) {
-    artist = matched[1].trim()
-    name = matched[2].trim()
+  const numbered = stem.match(/^(\d{1,3})\s*-\s*(.+?)\s*-\s*(.+)$/)
+  if (numbered) {
+    track = numbered[1].trim()
+    name = numbered[2].trim()
+    artist = numbered[3].trim()
+  } else {
+    const matched = stem.match(/^(.+?)\s*-\s*(.+)$/)
+    if (matched) {
+      artist = matched[1].trim()
+      name = matched[2].trim()
+    }
   }
 
   const coverFile = [`${stem}.jpg`, `${stem}.jpeg`, `${stem}.png`, `${stem}.webp`]
@@ -37,6 +45,7 @@ const audio = files.map((file) => {
   return {
     name,
     artist,
+    ...(track ? { track } : {}),
     url: encodePath(file),
     cover: coverFile ? encodePath(coverFile) : '',
     ...(existsSync(join(MUSIC_DIR, lrcFile))
