@@ -1128,10 +1128,17 @@ export function initMusicPlayer() {
     }
   }
 
-  const openPanel = () => {
+  const openPanel = ({ autoplay = true } = {}) => {
     setPanelOpen(true)
     ensurePlayer().then((ap) => {
       refreshAPlayerLayout(ap, () => scheduleMusicPanelFit(root, panel, toggle))
+      if (!autoplay || !panelOpen || !ap?.audio || !ap.audio.paused) return
+      try {
+        const played = ap.play()
+        if (played && typeof played.catch === 'function') played.catch(() => {})
+      } catch {
+        /* 用户仍可点播放按钮 */
+      }
     }).catch(() => {})
   }
 
@@ -1151,15 +1158,16 @@ export function initMusicPlayer() {
 
   const stored = readState(storageKey)
   if (stored.panelOpen) {
-    openPanel()
-  } else if (stored.paused !== true) {
+    openPanel({ autoplay: false })
+  } else {
+    // 即使用户上次暂停过，也提前把播放器准备好；点开时不必再等“加载中”。
     const warm = () => {
       ensurePlayer().catch(() => {})
     }
     if ('requestIdleCallback' in window) {
-      requestIdleCallback(warm, { timeout: 8000 })
+      requestIdleCallback(warm, { timeout: 1500 })
     } else {
-      window.setTimeout(warm, 3000)
+      window.setTimeout(warm, 700)
     }
   }
 
@@ -1197,20 +1205,6 @@ export function scheduleMusicPlayerInit() {
   const root = document.getElementById('sakura-music')
   if (!root) return
 
-  const storageKey = root.dataset.storageKey || DEFAULT_STORAGE_KEY
-  try {
-    if (readState(storageKey).panelOpen) {
-      initMusicPlayer()
-      return
-    }
-  } catch {
-    /* ignore */
-  }
-
-  const run = () => initMusicPlayer()
-  if ('requestIdleCallback' in window) {
-    requestIdleCallback(run, { timeout: 5000 })
-  } else {
-    window.setTimeout(run, 2000)
-  }
+  // 立即绑定播放器按钮，避免用户很快点击时还没有响应；音频本身仍在后台预热。
+  initMusicPlayer()
 }
