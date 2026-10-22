@@ -6,6 +6,7 @@
     "music": "node scripts/build-music-playlist.mjs",
     "dev": "node scripts/build-music-playlist.mjs && node scripts/fetch-missing-static.mjs && node scripts/fetch-links-rss.mjs && node scripts/fetch-bangumi.mjs && hugo server -D --disableFastRender",
     "compress-mouse": "node scripts/compress-mouse-assets.mjs",
+    "admin": "node admin/server.mjs",
     "build": "node scripts/build.mjs",
     "build:cf": "node scripts/build.mjs"
   },

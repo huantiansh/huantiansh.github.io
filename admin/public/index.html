@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>huantiansh 本地后台</title>
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <div class="layout">
+    <aside class="sidebar">
+      <div class="brand">
+        <strong>huantiansh</strong>
+        <span>local admin</span>
+      </div>
+      <nav class="nav">
+        <button data-view="overview">概览</button>
+        <button data-view="site">站点设置</button>
+        <button data-view="headers">头图中心</button>
+        <button data-view="posts">文章</button>
+        <button data-view="pages">页面</button>
+        <button data-view="media">媒体库</button>
+        <button data-view="appearance">外观与组件</button>
+        <button data-view="publish">预览与发布</button>
+      </nav>
+      <div class="sidebar-foot">只在本机 127.0.0.1 运行<br>改动会直接写入项目文件</div>
+    </aside>
+    <main class="main">
+      <header class="topbar">
+        <h1 id="view-title">概览</h1>
+        <div id="status" class="status"></div>
+      </header>
+      <section id="view" class="view"></section>
+    </main>
+  </div>
+  <div id="modal-root"></div>
+  <script type="module" src="/app.js"></script>
+</body>
+</html>

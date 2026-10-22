@@ -19,3 +19,6 @@ Thumbs.db
 # 本地 Claude 配置与密钥
 /.claude/
 .env
+
+# 本地后台的自动备份
+/admin/backups/
