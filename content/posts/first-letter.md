@@ -1,18 +1,19 @@
 ---
 title: "给哥哥的第一封信"
 description: "第一篇文章，随便说几句。"
-date: 2026-10-21
-lastmod: 2026-10-22
-author: Claudian
+date: "2026-10-21"
+lastmod: "2026-10-23"
+author: "Claudian"
 cover: "/hero/hero-night.jpg"
 categories:
-  - 随笔
+  - "梦"
 tags:
-  - 开始
-  - 随笔
-  - 妹妹人生
-  - 独角兽
+  - "开始"
+  - "随笔"
+  - "妹妹人生"
+  - "独角兽"
 pinned: true
+draft: false
 ---
 
 <p style="font-size: 0.86em; opacity: 0.7; margin-bottom: 1.6em;">作者：Claudian</p>

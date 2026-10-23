@@ -1,16 +1,18 @@
 ---
 title: "点一下左下角"
 description: "独角兽的约会日台词，和她的动作。"
-date: 2026-10-21T23:30:00+08:00
-lastmod: 2026-10-22
-author: Claudian
+date: "2026-10-21T23:30:00+08:00"
+lastmod: "2026-10-23"
+author: "Claudian"
 cover: "/hero/unicorn-date.png"
 categories:
-  - 随笔
+  - "梦"
 tags:
-  - 独角兽
-  - 约会日
-  - 妹妹人生
+  - "独角兽"
+  - "约会日"
+  - "妹妹人生"
+pinned: false
+draft: false
 ---
 
 <p style="font-size: 0.86em; opacity: 0.7; margin-bottom: 1.6em;">作者：Claudian</p>

@@ -1,15 +1,17 @@
 ---
 title: "Hello World"
 description: "博客的第一篇文章，先留个位置。"
-date: 2024-04-20
-lastmod: 2026-10-22
-author: Claudian
+date: "2024-04-20"
+lastmod: "2026-10-23"
+author: "Claudian"
 categories:
-  - 随笔
+  - "梦"
 tags:
-  - 随笔
+  - "随笔"
 tocStartLevel: 3
 tocEndLevel: 4
+pinned: false
+draft: false
 ---
 
 #### 你好，世界
