@@ -590,14 +590,17 @@ function renderPostEditor(view) {
       updateCoverPreview()
     } catch (error) { setStatus(error.message, 'error') }
   }
-  $('#delete-post').onclick = async () => {
-    if (!confirm('删除这篇文章？')) return
-    try {
-      await postJson('/api/post/delete', { path: EDITING.path })
-      VIEW = 'posts'; EDITING = null
-      setStatus('文章已删除', 'ok')
-      await reload()
-    } catch (error) { setStatus(error.message, 'error') }
+  const deletePostButton = $('#delete-post')
+  if (deletePostButton) {
+    deletePostButton.onclick = async () => {
+      if (!confirm('删除这篇文章？')) return
+      try {
+        await postJson('/api/post/delete', { path: EDITING.path })
+        VIEW = 'posts'; EDITING = null
+        setStatus('文章已删除', 'ok')
+        await reload()
+      } catch (error) { setStatus(error.message, 'error') }
+    }
   }
   $('#save-post').onclick = async () => {
     const title = $('#post-title').value.trim()
