@@ -229,6 +229,7 @@ enableRobotsTXT = true     # 生成 robots.txt（模板在 themes/aiovtue/layout
       "果然还是该改在其他日子才好呢。",
       "可是我不习惯和哥哥——之外的人吃饭啊……",
       "……真的可以吗？",
+      "我赢了。",
     ]
     randomUrls = false     # 固定使用下面这张头图
     enableHitokoto = false # 关闭一言 API，改用妹妹原话
