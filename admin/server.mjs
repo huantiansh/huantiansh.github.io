@@ -22,10 +22,12 @@ import { createDoc, readDoc, writeDoc } from './lib/frontmatter.mjs'
 import { readConfig, patchConfig } from './lib/toml.mjs'
 import { cropImage, deleteMedia, listMedia, saveUpload, saveVideo } from './lib/media.mjs'
 import { deleteMusic, listMusic, saveMusic } from './lib/music.mjs'
+import { defaultCommitMessage, inspectPublish, publishSite } from '../scripts/lib/publish.mjs'
 
 const PUBLIC_DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), 'public')
 const MAX_JSON = 35 * 1024 * 1024
 const MAX_VIDEO = 220 * 1024 * 1024
+const MAX_PUBLISH_LOG = 500
 
 const PAGE_DEFS = [
   { key: 'about', label: '关于', path: 'content/about.md', body: true },
@@ -61,6 +63,8 @@ const MIME = {
 
 let previewProcess = null
 let previewLogs = []
+let publishJob = null
+let publishJobSequence = 0
 
 function json(res, status, data) {
   const body = JSON.stringify(data)
@@ -131,6 +135,95 @@ function gitStatus() {
     status: status.stdout.trim(),
     last: last.stdout.trim()
   }
+}
+
+function publicPublishJob() {
+  if (!publishJob) return null
+  return {
+    ...publishJob,
+    steps: publishJob.steps.map((step) => ({ ...step })),
+    log: publishJob.log.slice(-MAX_PUBLISH_LOG)
+  }
+}
+
+function recordPublishEvent(jobId, event) {
+  if (!publishJob || publishJob.id !== jobId) return
+  publishJob.updatedAt = new Date().toISOString()
+  if (event.type === 'step') {
+    let step = publishJob.steps.find((item) => item.key === event.key)
+    if (!step) {
+      step = { key: event.key, label: event.label, status: 'pending', detail: '' }
+      publishJob.steps.push(step)
+    }
+    step.label = event.label || step.label
+    step.status = event.status || step.status
+    step.detail = event.detail || ''
+    publishJob.stage = step.label
+    return
+  }
+  if (event.type === 'log') {
+    const time = new Date(event.at || Date.now()).toLocaleTimeString('zh-CN', { hour12: false })
+    publishJob.log.push(`[${time}] ${event.level === 'warn' ? '警告：' : ''}${event.message}`)
+    if (publishJob.log.length > MAX_PUBLISH_LOG) {
+      publishJob.log.splice(0, publishJob.log.length - MAX_PUBLISH_LOG)
+    }
+  }
+}
+
+function startPublishJob(message) {
+  if (publishJob?.status === 'running') {
+    throw new Error('已有一个发布任务正在运行，请等待它结束。')
+  }
+  const id = `publish-${Date.now()}-${++publishJobSequence}`
+  const now = new Date().toISOString()
+  publishJob = {
+    id,
+    status: 'running',
+    stage: '准备中',
+    message: String(message || defaultCommitMessage()).trim().slice(0, 200) || defaultCommitMessage(),
+    startedAt: now,
+    updatedAt: now,
+    finishedAt: null,
+    steps: [],
+    log: [],
+    result: null,
+    error: null
+  }
+
+  publishSite({
+    message: publishJob.message,
+    onEvent: (event) => recordPublishEvent(id, event)
+  }).then((result) => {
+    if (!publishJob || publishJob.id !== id) return
+    const finishedAt = new Date().toISOString()
+    publishJob.status = 'success'
+    publishJob.stage = result.noChanges ? '没有改动' : '发布完成'
+    publishJob.finishedAt = finishedAt
+    publishJob.updatedAt = finishedAt
+    publishJob.result = result
+    if (result.noChanges) {
+      publishJob.log.push(`[${new Date().toLocaleTimeString('zh-CN', { hour12: false })}] 没有需要上线的改动。`)
+    } else if (result.siteUrl) {
+      publishJob.log.push(`[${new Date().toLocaleTimeString('zh-CN', { hour12: false })}] 发布成功：${result.siteUrl}`)
+    }
+  }).catch((error) => {
+    if (!publishJob || publishJob.id !== id) return
+    const finishedAt = new Date().toISOString()
+    publishJob.status = 'failed'
+    publishJob.stage = error.pushed ? '已推送，构建未完成' : '发布失败'
+    publishJob.finishedAt = finishedAt
+    publishJob.updatedAt = finishedAt
+    publishJob.error = error.message
+    publishJob.result = {
+      pushed: Boolean(error.pushed),
+      remoteCommit: error.remoteCommit || '',
+      runUrl: error.runUrl || '',
+      actionsUrl: error.actionsUrl || ''
+    }
+    publishJob.log.push(`[${new Date().toLocaleTimeString('zh-CN', { hour12: false })}] 失败：${error.message}`)
+  })
+
+  return publicPublishJob()
 }
 
 function listPosts() {
@@ -410,21 +503,34 @@ async function handleApi(req, res, url) {
     return json(res, 200, { ok: true, running: Boolean(previewProcess), url: `http://127.0.0.1:${PREVIEW_PORT}/`, logs: previewLogs.slice(-80) })
   }
 
+  if (req.method === 'GET' && route === '/api/publish/preflight') {
+    const data = await inspectPublish()
+    return json(res, 200, data)
+  }
+
+  if (req.method === 'GET' && route === '/api/publish/status') {
+    return json(res, 200, {
+      ok: true,
+      job: publicPublishJob(),
+      defaultMessage: defaultCommitMessage()
+    })
+  }
+
+  if (req.method === 'POST' && route === '/api/publish') {
+    const payload = await readJson(req)
+    try {
+      const job = startPublishJob(payload.message)
+      return json(res, 202, { ok: true, job })
+    } catch (error) {
+      return fail(res, error, 409)
+    }
+  }
+
   if (req.method === 'POST' && route === '/api/git') {
     const payload = await readJson(req)
     const action = payload.action || 'status'
     if (action === 'status') return json(res, 200, { ok: true, git: gitStatus() })
-    if (action === 'commit') {
-      const message = String(payload.message || '').trim().slice(0, 200) || `chore: update via admin ${new Date().toISOString()}`
-      const add = run('git', ['add', '-A'])
-      const commit = run('git', ['commit', '-m', message])
-      return json(res, 200, { ok: add.code === 0 && (commit.code === 0 || commit.stdout.includes('nothing to commit')), add, commit, git: gitStatus() })
-    }
-    if (action === 'push') {
-      const push = run('git', ['push'], { env: { ...process.env, GIT_TERMINAL_PROMPT: '0' } })
-      return json(res, push.code === 0 ? 200 : 500, { ok: push.code === 0, push, git: gitStatus() })
-    }
-    return fail(res, new Error('未知 git 操作'), 400)
+    return fail(res, new Error('单独的提交/推送已停用，请使用“提交、推送并上线”。'), 400)
   }
 
   return fail(res, new Error('接口不存在'), 404)
@@ -462,11 +568,38 @@ const server = http.createServer(async (req, res) => {
   }
 })
 
+function openAdminBrowser(url) {
+  try {
+    const command = process.platform === 'win32' ? 'cmd.exe' : process.platform === 'darwin' ? 'open' : 'xdg-open'
+    const commandArgs = process.platform === 'win32' ? ['/c', 'start', '', url] : [url]
+    const child = spawn(command, commandArgs, {
+      detached: true,
+      stdio: 'ignore',
+      windowsHide: true
+    })
+    child.on('error', () => {})
+    child.unref()
+  } catch (_) {
+    /* 浏览器打开失败不影响后台服务 */
+  }
+}
+
 ensureUploadDirs()
 ensureDir(path.join(PROJECT_ROOT, 'admin', 'backups'))
+server.on('error', (error) => {
+  if (error.code === 'EADDRINUSE') {
+    console.error(`后台端口 ${ADMIN_PORT} 已被占用。请关闭占用该端口的程序后重试。`)
+  } else {
+    console.error(`后台启动失败：${error.message}`)
+  }
+  process.exit(1)
+})
 server.listen(ADMIN_PORT, '127.0.0.1', () => {
-  console.log(`Admin: http://127.0.0.1:${ADMIN_PORT}`)
+  const url = `http://127.0.0.1:${ADMIN_PORT}/`
+  console.log(`Admin: ${url}`)
   console.log(`Project: ${PROJECT_ROOT}`)
+  console.log(`PID: ${process.pid}`)
+  if (process.argv.includes('--open')) openAdminBrowser(url)
 })
 
 process.on('SIGINT', () => { stopPreview(); process.exit(0) })

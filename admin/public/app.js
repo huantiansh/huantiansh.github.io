@@ -24,6 +24,8 @@ let DATA = null
 let VIEW = 'overview'
 let EDITING = null
 let STATUS_TIMER = null
+let PUBLISH_JOB = null
+let PUBLISH_TIMER = null
 
 function setStatus(message, type = '') {
   const el = $('#status')
@@ -1017,10 +1019,159 @@ function renderAppearance(view) {
   }
 }
 
+function publishJobText(job) {
+  if (!job) return '还没有发布任务。'
+  const state = job.status === 'running' ? '进行中' : job.status === 'success' ? '成功' : '失败'
+  const lines = [`状态：${state}${job.stage ? ` · ${job.stage}` : ''}`]
+  for (const step of job.steps || []) {
+    const mark = step.status === 'success' ? '[OK]' : step.status === 'error' ? '[ERR]' : step.status === 'running' ? '[..]' : '[ ]'
+    lines.push(`${mark} ${step.label}${step.detail ? ` — ${step.detail}` : ''}`)
+  }
+  if (job.log?.length) {
+    lines.push('', '日志：', ...job.log.slice(-120))
+  }
+  if (job.result?.remoteCommit) lines.push('', `线上提交：${String(job.result.remoteCommit).slice(0, 7)}`)
+  if (job.result?.siteUrl) lines.push(`网站：${job.result.siteUrl}`)
+  if (job.result?.actionsUrl) lines.push(`Actions：${job.result.actionsUrl}`)
+  if (job.result?.runUrl) lines.push(`构建：${job.result.runUrl}`)
+  if (job.error) lines.push('', `错误：${job.error}`)
+  return lines.join('\n')
+}
+
+function publishLinksMarkup(job) {
+  const result = job?.result
+  if (!result) return ''
+  const links = []
+  if (job.status === 'success' && result.siteUrl && !result.noChanges) {
+    links.push(`<a href="${esc(result.siteUrl)}" target="_blank" rel="noopener">打开线上站点</a>`)
+  }
+  const runUrl = result.run?.html_url || result.runUrl
+  if (runUrl) links.push(`<a href="${esc(runUrl)}" target="_blank" rel="noopener">查看 Actions 构建</a>`)
+  else if (result.actionsUrl) links.push(`<a href="${esc(result.actionsUrl)}" target="_blank" rel="noopener">打开 GitHub Actions</a>`)
+  return links.join(' · ')
+}
+
+function applyPublishJob(job) {
+  PUBLISH_JOB = job || null
+  const output = $('#publish-job')
+  if (output) output.textContent = publishJobText(PUBLISH_JOB)
+  const button = $('#publish-start')
+  if (button) {
+    const running = PUBLISH_JOB?.status === 'running'
+    button.disabled = running
+    button.textContent = running ? '发布中…' : '提交、推送并上线'
+  }
+  const links = $('#publish-links')
+  if (links) links.innerHTML = publishLinksMarkup(PUBLISH_JOB)
+}
+
+async function refreshPublishGit() {
+  const data = await runAction('/api/git', { action: 'status' })
+  if (!data.ok || !data.git) throw new Error(data.error || '刷新 Git 状态失败')
+  DATA.git = data.git
+  const last = $('#publish-git-last')
+  if (last) last.textContent = data.git.last || '无'
+  const status = $('#publish-git-status')
+  if (status) status.textContent = data.git.status || '工作区干净'
+  return data.git
+}
+
+async function refreshPublishPreflight() {
+  const box = $('#publish-preflight')
+  if (!box) return
+  box.textContent = '正在检查本地与 GitHub 状态…'
+  try {
+    const data = await api('/api/publish/preflight')
+    if (!box.isConnected) return
+    const lines = [
+      `仓库：${data.repo} · 分支 ${data.branch}`,
+      `本地：${data.localHead.slice(0, 7)} · ${data.dirty ? `${data.changeCount} 个待提交文件` : '工作区干净'}`,
+      `线上：${data.remoteHead.slice(0, 7)} · ${data.remoteMessage || '无提交说明'}`,
+      `待推送本地提交：${data.pendingCommits}`,
+      data.needsPublish
+        ? `结论：可以发布，将提交 ${data.changeCount} 个文件`
+        : '结论：没有需要上线的改动',
+      data.siteUrl ? `站点：${data.siteUrl}` : ''
+    ].filter(Boolean)
+    if (data.changes?.length) {
+      lines.push('', '改动文件：', ...data.changes.slice(0, 80).map((item) => `${item.code.padEnd(2)} ${item.path}`))
+      if (data.changes.length > 80) lines.push(`…还有 ${data.changes.length - 80} 个文件`)
+    }
+    box.textContent = lines.join('\n')
+  } catch (error) {
+    if (box.isConnected) box.textContent = `发布预检失败：${error.message}`
+  }
+}
+
+function startPublishPolling() {
+  clearInterval(PUBLISH_TIMER)
+  PUBLISH_TIMER = setInterval(async () => {
+    try {
+      const data = await api('/api/publish/status')
+      if (!data.job) {
+        clearInterval(PUBLISH_TIMER)
+        PUBLISH_TIMER = null
+        applyPublishJob(null)
+        setStatus('没有找到正在运行的发布任务', 'error')
+        return
+      }
+      applyPublishJob(data.job)
+      if (data.job.status !== 'running') {
+        clearInterval(PUBLISH_TIMER)
+        PUBLISH_TIMER = null
+        try { await refreshPublishGit() } catch (_) { /* 只影响状态显示 */ }
+        refreshPublishPreflight()
+        setStatus(data.job.status === 'success' ? '发布任务完成' : '发布任务失败', data.job.status === 'success' ? 'ok' : 'error')
+      }
+    } catch (error) {
+      clearInterval(PUBLISH_TIMER)
+      PUBLISH_TIMER = null
+      const button = $('#publish-start')
+      if (button) {
+        button.disabled = false
+        button.textContent = '提交、推送并上线'
+      }
+      setStatus(error.message, 'error')
+    }
+  }, 1500)
+}
+
+async function loadPublishJob() {
+  try {
+    const data = await api('/api/publish/status')
+    if (data.job) {
+      applyPublishJob(data.job)
+      if (data.job.status === 'running') startPublishPolling()
+    } else {
+      applyPublishJob(null)
+    }
+  } catch (_) {
+    /* 状态读取失败时仍可手动检查 */
+  }
+}
+
 function renderPublish(view) {
   const git = DATA.git || {}
   const preview = DATA.preview || {}
+  const running = PUBLISH_JOB?.status === 'running'
   view.innerHTML = `
+    <div class="card">
+      <h2>一键上线</h2>
+      <p class="muted small">提交当前工作区所有未忽略改动，推送到 GitHub main，并等待 Pages Actions 构建完成。普通 git push 失败时会自动改用 GitHub API。</p>
+      <div class="field"><label>提交说明</label><input type="text" id="commit-message" value="" placeholder="留空自动生成：chore: update via admin 日期 时间"></div>
+      <div class="actions">
+        <button class="btn primary" id="publish-start" ${running ? 'disabled' : ''}>${running ? '发布中…' : '提交、推送并上线'}</button>
+        <button class="btn" id="publish-check">重新检查</button>
+        <button class="btn" id="git-refresh">刷新 Git 状态</button>
+      </div>
+      <p class="muted small">发布期间不要再用命令行同时提交或推送。真实上线会先提交本地改动。</p>
+      <pre class="output" id="publish-job">${esc(publishJobText(PUBLISH_JOB))}</pre>
+      <p class="small" id="publish-links">${publishLinksMarkup(PUBLISH_JOB)}</p>
+    </div>
+    <div class="card">
+      <h2>发布预检</h2>
+      <pre class="output" id="publish-preflight">正在检查本地与 GitHub 状态…</pre>
+    </div>
     <div class="card">
       <h2>构建与预览</h2>
       <div class="actions">
@@ -1035,14 +1186,8 @@ function renderPublish(view) {
     <div class="card">
       <h2>Git</h2>
       <p class="small">分支：<span class="code">${esc(git.branch || '-')}</span></p>
-      <p class="small">最近提交：<span class="code">${esc(git.last || '无')}</span></p>
-      <pre class="output">${esc(git.status || '工作区干净')}</pre>
-      <div class="field"><label>提交说明</label><input type="text" id="commit-message" value="chore: update via admin"></div>
-      <div class="actions">
-        <button class="btn" id="git-refresh">刷新 Git 状态</button>
-        <button class="btn primary" id="git-commit">提交全部改动</button>
-        <button class="btn" id="git-push">推送</button>
-      </div>
+      <p class="small">最近提交：<span class="code" id="publish-git-last">${esc(git.last || '无')}</span></p>
+      <pre class="output" id="publish-git-status">${esc(git.status || '工作区干净')}</pre>
     </div>
   `
   const output = $('#publish-output')
@@ -1076,28 +1221,34 @@ function renderPublish(view) {
     }
   }
   $('#git-refresh').onclick = async () => {
-    const data = await runAction('/api/git', { action: 'status' })
-    if (data.ok) {
-      DATA.git = data.git
-      render()
+    try {
+      await refreshPublishGit()
+      await refreshPublishPreflight()
       setStatus('Git 状态已刷新', 'ok')
-    } else setStatus(data.error || '刷新失败', 'error')
+    } catch (error) {
+      setStatus(error.message, 'error')
+    }
   }
-  $('#git-commit').onclick = async () => {
-    const data = await runAction('/api/git', { action: 'commit', message: $('#commit-message').value })
-    if (data.git) DATA.git = data.git
-    show([data.add?.stdout, data.add?.stderr, data.commit?.stdout, data.commit?.stderr, data.error].filter(Boolean).join('\n') || '提交完成。')
-    setStatus(data.ok ? '已提交' : '提交失败', data.ok ? 'ok' : 'error')
-    if (data.ok) render()
+  $('#publish-check').onclick = () => refreshPublishPreflight()
+  $('#publish-start').onclick = async () => {
+    const button = $('#publish-start')
+    button.disabled = true
+    button.textContent = '发布中…'
+    setStatus('发布任务已启动', '')
+    try {
+      const data = await postJson('/api/publish', { message: $('#commit-message').value })
+      applyPublishJob(data.job)
+      startPublishPolling()
+    } catch (error) {
+      button.disabled = false
+      button.textContent = '提交、推送并上线'
+      setStatus(error.message, 'error')
+    }
   }
-  $('#git-push').onclick = async () => {
-    output.textContent = '推送中…'
-    const data = await runAction('/api/git', { action: 'push' })
-    if (data.git) DATA.git = data.git
-    show([data.push?.stdout, data.push?.stderr, data.error].filter(Boolean).join('\n') || '推送完成。')
-    setStatus(data.ok ? '已推送' : '推送失败', data.ok ? 'ok' : 'error')
-    if (data.ok) render()
-  }
+
+  applyPublishJob(PUBLISH_JOB)
+  loadPublishJob()
+  refreshPublishPreflight()
 }
 
 function readFileAsDataURL(file) {
